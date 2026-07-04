@@ -1,0 +1,9 @@
+{
+  "maps": [
+    {
+      "id": "quickstop-store",
+      "name": "QuickStop Convenience Store",
+      "thumbnail": "/maps/quickstop-store/thumbnail.jpg"
+    }
+  ]
+}

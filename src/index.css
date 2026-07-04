@@ -1,0 +1,463 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Hide n Morph — Premium UI Stylesheet
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+/* ── Reset & Base ── */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0a0a12;
+  color: #eee;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Lobby Full-Screen Container ── */
+.lobby-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  /* Background image */
+  background: url('/lobby-bg.jpg') center center / cover no-repeat;
+}
+
+/* Dark gradient overlay for readability */
+.lobby-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(10, 10, 18, 0.45) 0%, rgba(10, 10, 18, 0.82) 100%);
+  z-index: 0;
+}
+
+/* Subtle floating particles / vignette */
+.lobby-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(255, 180, 50, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(100, 140, 255, 0.06) 0%, transparent 50%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Glassmorphic Card ── */
+.lobby-screen {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 24px;
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  /* Glassmorphism */
+  background: rgba(15, 15, 30, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+
+  /* Entry animation */
+  animation: cardSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cardSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Typography ── */
+.lobby-screen h1 {
+  margin: 0 0 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  text-align: center;
+  background: linear-gradient(135deg, #ffb832 0%, #ff8c32 50%, #ff6032 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+  text-shadow: none;
+}
+
+.lobby-subtitle {
+  margin: -4px 0 8px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.5px;
+}
+
+/* ── Inputs ── */
+.lobby-screen input {
+  padding: 13px 16px;
+  font-size: 15px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f0f0f0;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.lobby-screen input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.lobby-screen input:focus {
+  border-color: rgba(255, 184, 50, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 184, 50, 0.12);
+}
+
+/* ── Primary Button ── */
+.lobby-screen button {
+  padding: 13px 18px;
+  font-size: 15px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #ffb832 0%, #ff7b32 100%);
+  color: #1a0e00;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+  box-shadow: 0 4px 14px rgba(255, 140, 50, 0.3);
+}
+
+.lobby-screen button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 140, 50, 0.45);
+  filter: brightness(1.08);
+}
+
+.lobby-screen button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 140, 50, 0.25);
+}
+
+.lobby-screen button:disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Secondary Button ── */
+.lobby-screen button.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.lobby-screen button.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Seeker Intro Overlay ── */
+.seeker-intro-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 4, 10, 0.86);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.seeker-intro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 32px;
+  min-width: 280px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.seeker-intro-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffb832;
+}
+
+.seeker-intro-copy {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.seeker-intro-timer {
+  font-size: 42px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* ── Room Code Display ── */
+.room-code-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px;
+  background: rgba(255, 184, 50, 0.08);
+  border: 1px solid rgba(255, 184, 50, 0.2);
+  border-radius: 14px;
+}
+
+.room-code-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(255, 184, 50, 0.7);
+}
+
+.room-code-value {
+  font-family: 'Outfit', monospace;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #ffb832;
+  text-shadow: 0 0 20px rgba(255, 184, 50, 0.3);
+}
+
+/* ── Error Messages ── */
+.lobby-error {
+  color: #ff6b6b;
+  margin: 0;
+  font-size: 14px;
+  text-align: center;
+  padding: 8px 12px;
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 8px;
+}
+
+/* ── Player List ── */
+.player-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  transition: background 0.15s;
+}
+
+.player-list li:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.player-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+  flex-shrink: 0;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 184, 50, 0.15);
+  color: #ffb832;
+  border: 1px solid rgba(255, 184, 50, 0.3);
+}
+
+.badge-you {
+  background: rgba(100, 160, 255, 0.15);
+  color: #64a0ff;
+  border-color: rgba(100, 160, 255, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IN-GAME OVERLAYS (unchanged logic, refined look)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.map-loading,
+.map-error,
+.game-loading,
+.game-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 18px;
+}
+
+.game-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.morph-prompt-overlay {
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  font-size: 16px;
+  color: #fff;
+  pointer-events: none;
+  text-align: center;
+}
+
+.hit-message-overlay {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(204, 51, 51, 0.85);
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
+  text-align: center;
+}
+
+.crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.round-timer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
+}
+
+.disguise-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: rgba(51, 102, 204, 0.8);
+  border-radius: 6px;
+  font-size: 14px;
+  color: #fff;
+  pointer-events: none;
+  text-transform: capitalize;
+}
+
+.health-bar-container {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.health-bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.health-bar-track {
+  width: 160px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.health-bar-fill {
+  height: 100%;
+  transition: width 0.2s ease-out, background 0.2s ease-out;
+}
