@@ -30,6 +30,11 @@ interface UseMorphSystemArgs {
    *  place, but `enabled` stays as an explicit belt-and-suspenders
    *  gate rather than relying solely on "is this even mounted". */
   enabled: boolean;
+  /** Optional maximum safe camera Y to clamp flushed positions when morphing
+   *  (prevents clients in 3rd-person from writing an elevated camera Y
+   *  into the player's DB row and causing others to render them off into
+   *  the sky). */
+  maxSafeCameraY?: number;
 }
 
 interface MorphSystemState {
@@ -52,6 +57,7 @@ export function useMorphSystem({
   currentMorphId,
   triggerMorph,
   enabled,
+  maxSafeCameraY,
 }: UseMorphSystemArgs): MorphSystemState {
   const { camera } = useThree();
   const [nearbyProp, setNearbyProp] = useState<MorphableProp | null>(null);
@@ -93,9 +99,10 @@ export function useMorphSystem({
       console.debug('[morph] tryMorph result for', playerId, 'target', target.id, result);
       if (result.ok) {
         try {
+          const flushedY = typeof maxSafeCameraY === 'number' ? Math.min(camera.position.y, maxSafeCameraY) : camera.position.y;
           await supabase.from('players').update({
             pos_x: camera.position.x,
-            pos_y: camera.position.y,
+            pos_y: flushedY,
             pos_z: camera.position.z,
           }).eq('id', playerId);
           console.debug('[morph] flushed position for', playerId, [camera.position.x, camera.position.y, camera.position.z]);
@@ -240,16 +247,17 @@ export function useMorphSystem({
           // they were when the morph happened. This prevents a small
           // timing gap (throttled position sync) from leaving others
           // with an out-of-date location that looks like a teleport.
-          try {
-            await supabase.from('players').update({
-              pos_x: camera.position.x,
-              pos_y: camera.position.y,
-              pos_z: camera.position.z,
-            }).eq('id', playerId);
-            console.debug('[morph] flushed position for', playerId, [camera.position.x, camera.position.y, camera.position.z]);
-          } catch (e) {
-            console.error('[morph] failed to flush position', e);
-          }
+            try {
+              const flushedY = typeof maxSafeCameraY === 'number' ? Math.min(camera.position.y, maxSafeCameraY) : camera.position.y;
+              await supabase.from('players').update({
+                pos_x: camera.position.x,
+                pos_y: flushedY,
+                pos_z: camera.position.z,
+              }).eq('id', playerId);
+              console.debug('[morph] flushed position for', playerId, [camera.position.x, flushedY, camera.position.z]);
+            } catch (e) {
+              console.error('[morph] failed to flush position', e);
+            }
         } else if (!result.ok && result.reason === 'occupied') {
           // Someone else already claimed this exact instance between
           // when we detected it as "nearby" and pressing E. Rare, not

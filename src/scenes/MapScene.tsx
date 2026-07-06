@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, useAnimations, PointerLockControls } from '@react-three/drei';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -8,7 +8,7 @@ import { useMorphSystem } from '../hooks/useMorphSystem';
 import { useShooting } from '../hooks/useShooting';
 import { FirstPersonController } from './FirstPersonController';
 import { MobileControls } from '../components/MobileControls';
-import type { MapManifest, MorphableProp, PlayerRole, PlayerRow, Vec3Tuple } from '../types/game';
+import type { FloorPlane, MapManifest, MorphableProp, PlayerRole, PlayerRow, Vec3Tuple } from '../types/game';
 
 // p.pos_y is the LOCAL PLAYER's synced CAMERA position (eye height,
 // matching FirstPersonController's PLAYER_HEIGHT = 1.7), not a
@@ -343,12 +343,14 @@ export function MapScene({
   const [jumpRequestCount, setJumpRequestCount] = useState(0);
   const [morphRequestCount, setMorphRequestCount] = useState(0);
   const [shootRequestCount, setShootRequestCount] = useState(0);
+  const [scenePlanes, setScenePlanes] = useState<FloorPlane[]>([]);
   const spawnPool: Vec3Tuple[] = manifest
     ? role === 'seeker'
       ? manifest.spawns.seeker
       : manifest.spawns.hider
     : [[0, SYNCED_EYE_HEIGHT, 0]];
-  const startPosition: Vec3Tuple = spawnPool[spawnIndex % spawnPool.length] ?? spawnPool[0];
+  const initialStart = (spawnPool[spawnIndex % spawnPool.length] ?? spawnPool[0]) as Vec3Tuple;
+  const [startPosition, setStartPosition] = useState<Vec3Tuple>(initialStart);
   const playerPositionRef = useRef(new THREE.Vector3(startPosition[0], SYNCED_EYE_HEIGHT, startPosition[2]));
 
   useEffect(() => {
@@ -373,6 +375,38 @@ export function MapScene({
     };
   }, []);
 
+  function insidePlane(x: number, z: number, plane: FloorPlane): boolean {
+    return x >= plane.minX && x <= plane.maxX && z >= plane.minZ && z <= plane.maxZ;
+  }
+
+  // When scene-derived floor planes become available, clamp the
+  // configured spawn position to the detected surface so players do
+  // not appear above roofs or under ceilings. startPosition is the
+  // camera-eye vector (y = SYNCED_EYE_HEIGHT above the surface).
+  useEffect(() => {
+    if (!manifest || scenePlanes.length === 0 || !startPosition) return;
+    const x = startPosition[0];
+    const z = startPosition[2];
+    // check morphable colliders for any prop under the spawn
+    let highest = 0;
+    for (const c of manifest.morphables) {
+      const dx = x - c.position[0];
+      const dz = z - c.position[2];
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < 0.3 + c.footprint.radius && c.footprint.height > highest) highest = c.footprint.height;
+    }
+    // check scene-derived planes but ignore ceilings for spawn height
+    for (const p of scenePlanes) {
+      if (!p.isCeiling && insidePlane(x, z, p) && p.height > highest) {
+        highest = p.height;
+      }
+    }
+    const newStart: Vec3Tuple = [x, highest + SYNCED_EYE_HEIGHT, z];
+    if (newStart[1] !== startPosition[1]) {
+      setStartPosition(newStart);
+    }
+  }, [scenePlanes, manifest, startPosition]);
+
   if (error) {
     return <div className="map-error">Failed to load map "{mapId}": {error}</div>;
   }
@@ -382,24 +416,28 @@ export function MapScene({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <Canvas camera={{ fov: 75, near: 0.1, far: 100 }}>
+      <Canvas camera={{ fov: 75, near: 0.1, far: 100 }} shadows={false} dpr={1.0}>
         <Suspense fallback={null}>
           <SceneContents
             manifest={manifest}
             onReady={onReady}
+            onSceneReady={(planes: FloorPlane[]) => setScenePlanes(planes)}
             otherPlayers={otherPlayers}
             role={role}
             selfPlayer={selfPlayer}
             thirdPerson={thirdPerson}
+            playerPositionRef={playerPositionRef}
             lastShotTimes={lastShotTimes}
           />
         </Suspense>
         <PointerLockControls />
-        {thirdPerson && <ThirdPersonCamera selfPlayer={selfPlayer} enabled={thirdPerson} />}
+        {thirdPerson && <ThirdPersonCamera selfPlayer={selfPlayer} enabled={thirdPerson} maxCameraY={manifest.bounds.max[1]} />}
         <FirstPersonController
           startPosition={startPosition}
           bounds={manifest.bounds}
           colliders={manifest.morphables}
+          wallColliders={manifest.buildingWalls}
+          floorPlanes={scenePlanes}
           playerPositionRef={playerPositionRef}
           thirdPerson={thirdPerson}
           onPositionChange={onPositionChange}
@@ -416,6 +454,7 @@ export function MapScene({
             currentMorphId={currentMorphId}
             triggerMorph={morphRequestCount}
             onPromptChange={onMorphPromptChange}
+            maxSafeY={manifest.bounds.max[1] + SYNCED_EYE_HEIGHT}
           />
         )}
         {role === 'seeker' && selfPlayerId && selfPlayer && (
@@ -432,6 +471,11 @@ export function MapScene({
       <div style={{ position: 'absolute', bottom: 12, right: 12, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '8px 10px', borderRadius: 6, fontSize: 13, pointerEvents: 'none' }}>
         View: {thirdPerson ? '3rd person' : '1st person'} (press V)
       </div>
+      {selfPlayer && (
+        <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.5)', color: 'white', padding: '8px 10px', borderRadius: 6, fontSize: 13, pointerEvents: 'none' }}>
+          X: {selfPlayer.pos_x.toFixed(1)} &nbsp; Y: {selfPlayer.pos_y.toFixed(1)} &nbsp; Z: {selfPlayer.pos_z.toFixed(1)}
+        </div>
+      )}
       {mobileActive && (
         <MobileControls
           onMoveChange={setMoveInput}
@@ -472,12 +516,14 @@ function MorphController({
   currentMorphId,
   triggerMorph,
   onPromptChange,
+  maxSafeY,
 }: {
   playerId: string;
   morphables: MorphableProp[];
   currentMorphId: string | null;
   triggerMorph?: number;
   onPromptChange?: (prop: MorphableProp | null) => void;
+  maxSafeY?: number;
 }) {
   const { nearbyProp } = useMorphSystem({
     playerId,
@@ -485,6 +531,7 @@ function MorphController({
     currentMorphId,
     enabled: true,
     triggerMorph,
+    maxSafeCameraY: maxSafeY,
   });
 
   const lastReported = useRef<string | null>(null);
@@ -600,66 +647,123 @@ function OtherPlayers({ players, morphables, lastShotTimes = {} }: { players: Pl
   );
 }
 
-function SceneContents({
-  manifest,
-  onReady,
-  otherPlayers,
-  role,
-  selfPlayer,
-  thirdPerson,
-  lastShotTimes = {},
-}: {
-  manifest: MapManifest;
-  onReady?: (morphMeshes: Map<string, THREE.Object3D>) => void;
-  otherPlayers: PlayerRow[];
-  role: PlayerRole;
-  selfPlayer?: PlayerRow | null;
-  thirdPerson: boolean;
-  lastShotTimes?: Record<string, number>;
-}) {
+function SceneContents(props: SceneContentsProps) {
+  const {
+    manifest,
+    onReady,
+    onSceneReady,
+    otherPlayers,
+    role,
+    selfPlayer,
+    thirdPerson,
+    playerPositionRef,
+    lastShotTimes = {},
+  } = props;
+  // Debug overlay: draw manifest bounds and spawn points in-scene so
+  // it's easy to visually confirm where players can walk and where
+  // stairs/spawn points are located.
+  function DebugOverlay({ manifest }: { manifest: MapManifest }) {
+    const { bounds, spawns } = manifest;
+    const boxMemo = useMemo(() => {
+      const min = new THREE.Vector3(bounds.min[0], bounds.min[1], bounds.min[2]);
+      const max = new THREE.Vector3(bounds.max[0], bounds.max[1], bounds.max[2]);
+      const size = new THREE.Vector3().subVectors(max, min);
+      const center = new THREE.Vector3().addVectors(min, max).multiplyScalar(0.5);
+      const geom = new THREE.BoxGeometry(size.x, size.y, size.z);
+      const edges = new THREE.EdgesGeometry(geom);
+      const mat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+      return { edges, mat, center };
+    }, [manifest.id, manifest.bounds]);
+
+    const hiderSpawns = spawns?.hider ?? [];
+    const seekerSpawns = spawns?.seeker ?? [];
+    const buildingWalls = manifest.buildingWalls ?? [];
+
+    return (
+      <group>
+        <lineSegments geometry={boxMemo.edges} material={boxMemo.mat} position={[boxMemo.center.x, boxMemo.center.y, boxMemo.center.z]} renderOrder={999} />
+        {hiderSpawns.map((s, i) => (
+          <mesh key={`hider-${i}`} position={[s[0], s[1] ?? 0.1, s[2]]} renderOrder={998}>
+            <sphereGeometry args={[0.25, 8, 8]} />
+            <meshBasicMaterial color={0x0077ff} depthTest={false} depthWrite={false} />
+          </mesh>
+        ))}
+        {seekerSpawns.map((s, i) => (
+          <mesh key={`seeker-${i}`} position={[s[0], s[1] ?? 0.1, s[2]]} renderOrder={998}>
+            <coneGeometry args={[0.25, 0.5, 8]} />
+            <meshBasicMaterial color={0xff3300} depthTest={false} depthWrite={false} />
+          </mesh>
+        ))}
+        {/* Orange wireframe per invisible wall collider — lets you SEE
+            exactly where a buildingWalls entry sits against the real
+            building geometry underneath it, so placing/nudging box
+            coordinates in the manifest is a visual "does the box line up
+            with the wall" check rather than a guessing game. */}
+        {buildingWalls.map((w) => {
+          const sizeX = w.maxX - w.minX;
+          const sizeY = w.maxY - w.minY;
+          const sizeZ = w.maxZ - w.minZ;
+          const cx = (w.minX + w.maxX) / 2;
+          const cy = (w.minY + w.maxY) / 2;
+          const cz = (w.minZ + w.maxZ) / 2;
+          return (
+            <mesh key={w.id} position={[cx, cy, cz]} renderOrder={997}>
+              <boxGeometry args={[sizeX, sizeY, sizeZ]} />
+              <meshBasicMaterial color={0xff8800} wireframe depthTest={false} depthWrite={false} />
+            </mesh>
+          );
+        })}
+      </group>
+    );
+  }
   if (manifest.usePlaceholderGeometry) {
     return (
-      <PlaceholderSceneContents
+      <>
+        <PlaceholderSceneContents
+          manifest={manifest}
+          onReady={onReady}
+          onSceneReady={onSceneReady}
+          otherPlayers={otherPlayers}
+          role={role}
+          selfPlayer={selfPlayer}
+          thirdPerson={thirdPerson}
+          playerPositionRef={playerPositionRef}
+          lastShotTimes={lastShotTimes}
+        />
+        <DebugOverlay manifest={manifest} />
+      </>
+    );
+  }
+  return (
+    <>
+      <GltfSceneContents
         manifest={manifest}
         onReady={onReady}
+        onSceneReady={onSceneReady}
         otherPlayers={otherPlayers}
         role={role}
         selfPlayer={selfPlayer}
         thirdPerson={thirdPerson}
+        playerPositionRef={playerPositionRef}
         lastShotTimes={lastShotTimes}
       />
-    );
-  }
-  return (
-    <GltfSceneContents
-      manifest={manifest}
-      onReady={onReady}
-      otherPlayers={otherPlayers}
-      role={role}
-      selfPlayer={selfPlayer}
-      thirdPerson={thirdPerson}
-      lastShotTimes={lastShotTimes}
-    />
+      <DebugOverlay manifest={manifest} />
+    </>
   );
 }
 
-function GltfSceneContents({
-  manifest,
-  onReady,
-  otherPlayers,
-  role,
-  selfPlayer,
-  thirdPerson,
-  lastShotTimes = {},
-}: {
-  manifest: MapManifest;
-  onReady?: (morphMeshes: Map<string, THREE.Object3D>) => void;
-  otherPlayers: PlayerRow[];
-  role: PlayerRole;
-  selfPlayer?: PlayerRow | null;
-  thirdPerson: boolean;
-  lastShotTimes?: Record<string, number>;
-}) {
+function GltfSceneContents(props: GltfSceneContentsProps) {
+  const {
+    manifest,
+    onReady,
+    onSceneReady,
+    otherPlayers,
+    role,
+    selfPlayer,
+    thirdPerson,
+    playerPositionRef,
+    lastShotTimes = {},
+  } = props;
   const registered = useRef(false);
 
   // Which morphable instance IDs are currently occupied by some OTHER
@@ -716,6 +820,66 @@ function GltfSceneContents({
     modelPaths.map((p) => `/maps/${manifest.id}/${p}`)
   ) as unknown as Array<{ scene: THREE.Object3D }>;
 
+  // Load the shared scene GLB (one big scene.glb) if the manifest
+  // provides a sceneFile. This lets authors ship a full scene and still
+  // combine it with smaller per-prop modelFile entries for morphables.
+  const sceneGltf = manifest.sceneFile
+    ? (useGLTF(`/maps/${manifest.id}/${manifest.sceneFile}`) as unknown as { scene: THREE.Object3D })
+    : null;
+
+  // Compute scene-derived floor and ceiling planes from authored GLTF
+  // geometry. This gives us hard traversal surfaces for major horizontal
+  // floors and ceilings without requiring explicit manifest markup.
+  useEffect(() => {
+    if (!sceneGltf?.scene) {
+      onSceneReady?.([]);
+      return;
+    }
+    try {
+      sceneGltf.scene.updateWorldMatrix(true, true);
+      const planes: FloorPlane[] = [];
+      sceneGltf.scene.traverse((node: THREE.Object3D) => {
+        if (!(node as any).isMesh) return;
+        const mesh = node as THREE.Mesh;
+        if (!mesh.geometry) return;
+
+        const box = new THREE.Box3().setFromObject(mesh);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const area = size.x * size.z;
+        if (area < 4 || size.y > 1.5) return;
+
+        let averageNormalY = 0;
+        const geometry = mesh.geometry as THREE.BufferGeometry;
+        const normalAttr = geometry.attributes.normal;
+        if (normalAttr) {
+          const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+          const sampleCount = Math.min(normalAttr.count, 200);
+          const step = Math.max(1, Math.floor(normalAttr.count / sampleCount));
+          const tempNormal = new THREE.Vector3();
+          let total = 0;
+          for (let i = 0; i < normalAttr.count; i += step) {
+            tempNormal.fromBufferAttribute(normalAttr, i).applyMatrix3(normalMatrix).normalize();
+            averageNormalY += tempNormal.y;
+            total += 1;
+          }
+          if (total > 0) averageNormalY /= total;
+        } else {
+          const worldUp = new THREE.Vector3(0, 1, 0).applyMatrix4(mesh.matrixWorld).sub(new THREE.Vector3().setFromMatrixPosition(mesh.matrixWorld)).normalize();
+          averageNormalY = worldUp.y;
+        }
+
+        if (Math.abs(averageNormalY) < 0.6) return;
+        const isCeiling = averageNormalY < 0;
+        const height = isCeiling ? box.min.y : box.max.y;
+        planes.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, height, isCeiling });
+      });
+      onSceneReady?.(planes);
+    } catch (e) {
+      onSceneReady?.([]);
+    }
+  }, [sceneGltf?.scene, onSceneReady]);
+
   const sceneByPath = useMemo(() => {
     const map = new Map<string, THREE.Object3D>();
     modelPaths.forEach((path, i) => {
@@ -770,8 +934,10 @@ function GltfSceneContents({
 
   return (
     <>
-      <ambientLight intensity={0.45} />
-      <CeilingLights bounds={manifest.bounds} />
+      {/* Render the authored full-scene GLB first so it's the visual backdrop */}
+      {sceneGltf?.scene && <primitive object={sceneGltf.scene} />}
+      <hemisphereLight args={[0xffffff, 0x444444, 0.9]} />
+      <ambientLight intensity={1.0} />
 
       {/* Floor: instanced, since a 34x24m room at 1m tiles is 800+
           individual tiles — one InstancedMesh sharing the floor's
@@ -850,6 +1016,7 @@ function GltfSceneContents({
         sceneByPath={sceneByPath}
         thirdPerson={thirdPerson}
         lastShotTimes={lastShotTimes}
+        playerPositionRef={playerPositionRef}
       />
       <RealAssetOtherPlayers
         players={otherPlayers}
@@ -1121,6 +1288,7 @@ function SelfPlayerThirdPerson({
   sceneByPath,
   thirdPerson,
   lastShotTimes,
+  playerPositionRef,
 }: {
   selfPlayer?: PlayerRow | null;
   role: PlayerRole;
@@ -1128,14 +1296,30 @@ function SelfPlayerThirdPerson({
   sceneByPath?: Map<string, THREE.Object3D>;
   thirdPerson: boolean;
   lastShotTimes: Record<string, number>;
+  playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   if (!thirdPerson || !selfPlayer) return null;
 
+  const localY = playerPositionRef.current.y;
   const position: [number, number, number] = [
-    selfPlayer.pos_x,
-    heightAboveGroundFromPosY(selfPlayer.pos_y),
-    selfPlayer.pos_z,
+    playerPositionRef.current.x,
+    heightAboveGroundFromPosY(localY),
+    playerPositionRef.current.z,
   ];
+
+  // This mesh only exists in the scene while thirdPerson is true (it's
+  // the player's OWN visual body, drawn so they can see themselves).
+  // FirstPersonController's ground raycast fires straight down from
+  // directly above this same x/z through the whole scene — without this
+  // tag it hits this very mesh (torso/head, well above the real floor),
+  // which the controller then treats as ground and snaps the player up
+  // onto. That inflates position.y, which redraws this mesh even
+  // higher, which the next frame's ray hits again — a runaway feedback
+  // loop that only manifests in 3rd person (in 1st person this mesh
+  // isn't rendered at all, so the ray never self-intersects). Tagging
+  // the group lets the raycast skip it while leaving every other piece
+  // of scene geometry (real ground, props, other players) untouched.
+  const selfMeshUserData = { excludeFromGroundRay: true };
 
   if (selfPlayer.morphed_into) {
     const prop = morphables.find((m) => m.id === selfPlayer.morphed_into);
@@ -1143,19 +1327,21 @@ function SelfPlayerThirdPerson({
       const source = sceneByPath.get(prop.modelFile);
       if (source) {
         return (
-          <MorphedRealProp
-            playerId={selfPlayer.id}
-            source={source}
-            nodeName={prop.nodeName}
-            position={position}
-            rotationY={(selfPlayer.rot_y * 180) / Math.PI}
-            scale={prop.scale}
-            stackCount={prop.stackCount}
-            stackSegmentHeight={prop.stackSegmentHeight}
-            autoCenterXZ={prop.autoCenterXZ ?? false}
-            autoFloorY={prop.autoFloorY ?? false}
-            viewerRole={role}
-          />
+          <group userData={selfMeshUserData}>
+            <MorphedRealProp
+              playerId={selfPlayer.id}
+              source={source}
+              nodeName={prop.nodeName}
+              position={position}
+              rotationY={(selfPlayer.rot_y * 180) / Math.PI}
+              scale={prop.scale}
+              stackCount={prop.stackCount}
+              stackSegmentHeight={prop.stackSegmentHeight}
+              autoCenterXZ={prop.autoCenterXZ ?? false}
+              autoFloorY={prop.autoFloorY ?? false}
+              viewerRole={role}
+            />
+          </group>
         );
       }
     }
@@ -1165,7 +1351,12 @@ function SelfPlayerThirdPerson({
     const fallbackColor = prop ? colorForGroup(prop.groupId) : '#3366cc';
 
     return (
-      <mesh position={[position[0], position[1] + fallbackHeight / 2, position[2]]} rotation={[0, selfPlayer.rot_y, 0]} castShadow>
+      <mesh
+        userData={selfMeshUserData}
+        position={[position[0], position[1] + fallbackHeight / 2, position[2]]}
+        rotation={[0, selfPlayer.rot_y, 0]}
+        castShadow
+      >
         <cylinderGeometry args={[fallbackRadius, fallbackRadius, fallbackHeight, 8]} />
         <meshStandardMaterial color={fallbackColor} />
       </mesh>
@@ -1173,22 +1364,26 @@ function SelfPlayerThirdPerson({
   }
 
   return (
-    <PlayerCharacter
-      playerId={selfPlayer.id}
-      role={role}
-      position={position}
-      rotationY={selfPlayer.rot_y}
-      scale={[0.75, 0.75, 0.75]}
-      hp={selfPlayer.hp}
-      lastShotTime={lastShotTimes[selfPlayer.id] ?? 0}
-      morphables={morphables}
-    />
+    <group userData={selfMeshUserData}>
+      <PlayerCharacter
+        playerId={selfPlayer.id}
+        role={role}
+        position={position}
+        rotationY={selfPlayer.rot_y}
+        scale={[0.75, 0.75, 0.75]}
+        hp={selfPlayer.hp}
+        lastShotTime={lastShotTimes[selfPlayer.id] ?? 0}
+        morphables={morphables}
+      />
+    </group>
   );
 }
 
-function ThirdPersonCamera({ selfPlayer, enabled }: { selfPlayer?: PlayerRow | null; enabled: boolean }) {
+function ThirdPersonCamera({ selfPlayer, enabled, maxCameraY }: { selfPlayer?: PlayerRow | null; enabled: boolean; maxCameraY?: number }) {
   const { camera } = useThree();
   const lastPosition = useRef(new THREE.Vector3());
+  const lastPlayerY = useRef<number | null>(null);
+  const lastPlayerXZ = useRef(new THREE.Vector2());
 
   useFrame(() => {
     if (!enabled || !selfPlayer) return;
@@ -1204,6 +1399,30 @@ function ThirdPersonCamera({ selfPlayer, enabled }: { selfPlayer?: PlayerRow | n
       selfPlayer.pos_y + height,
       selfPlayer.pos_z - forward.z * distance
     );
+
+    // Prevent third-person camera from shooting off to the sky by clamping
+    // to the map's maximum Y bound (with a small safety margin).
+    const maxY = typeof maxCameraY === 'number' ? maxCameraY + 5 : 200;
+
+    // Defensive guard: if the player's reported Y jumps upward while
+    // their horizontal position hasn't changed meaningfully (standing
+    // still), ignore the sudden increase and keep the camera near the
+    // last known safe player Y. This prevents a small runaway feedback
+    // loop that was pulling stationary players into the sky.
+    const prevY = lastPlayerY.current ?? selfPlayer.pos_y;
+    const prevXZ = lastPlayerXZ.current ?? new THREE.Vector2(selfPlayer.pos_x, selfPlayer.pos_z);
+    const dxz = Math.hypot(selfPlayer.pos_x - prevXZ.x, selfPlayer.pos_z - prevXZ.y);
+    const dy = selfPlayer.pos_y - (prevY ?? selfPlayer.pos_y);
+
+    if (dy > 0.5 && dxz < 0.2) {
+      // Sudden upward movement while stationary -> ignore large jump.
+      console.warn('[ThirdPersonCamera] suppressed sudden upward pos for', selfPlayer.id, prevY, '->', selfPlayer.pos_y);
+      desiredPosition.y = (prevY ?? selfPlayer.pos_y) + 0.1 + height;
+    } else {
+      if (desiredPosition.y > maxY) desiredPosition.y = maxY;
+      lastPlayerY.current = selfPlayer.pos_y;
+      lastPlayerXZ.current.set(selfPlayer.pos_x, selfPlayer.pos_z);
+    }
 
     lastPosition.current.lerp(desiredPosition, 0.15);
     camera.position.copy(lastPosition.current);
@@ -1410,39 +1629,7 @@ function ClonedGltf({
 // this is the whole point of the morph mechanic (blend into a crowd of
 // matching props). Hash the string to a hue rather than hand-listing
 // every groupId, so new maps/groups get a color automatically.
-/** Even, even indoor lighting via a grid of point lights spaced across
- * the ceiling, rather than one strong directional light from a corner
- * (which reads as outdoor sunlight, not indoor store lighting, and
- * casts one long harsh shadow direction across the whole room). Real
- * stores have overhead fixtures roughly evenly spaced — this
- * approximates that without needing individual light-fixture models.
- * Spacing is derived from bounds so this scales automatically to
- * other maps with different dimensions, rather than hardcoding
- * QuickStop's specific size. */
-function CeilingLights({ bounds }: { bounds: MapManifest['bounds'] }) {
-  const SPACING = 8.5; // meters between each ceiling light
-  const HEIGHT = bounds.max[1] - 0.3; // just under the ceiling
-
-  const positions = useMemo(() => {
-    const result: [number, number, number][] = [];
-    const [minX, , minZ] = bounds.min;
-    const [maxX, , maxZ] = bounds.max;
-    for (let x = minX + SPACING / 2; x < maxX; x += SPACING) {
-      for (let z = minZ + SPACING / 2; z < maxZ; z += SPACING) {
-        result.push([x, HEIGHT, z]);
-      }
-    }
-    return result;
-  }, [bounds]);
-
-  return (
-    <>
-      {positions.map((pos, i) => (
-        <pointLight key={i} position={pos} intensity={0.9} distance={12} decay={2} castShadow={i === 0} />
-      ))}
-    </>
-  );
-}
+ 
 
 function colorForGroup(groupId: string): string {
   let hash = 0;
@@ -1453,23 +1640,38 @@ function colorForGroup(groupId: string): string {
   return `hsl(${hue}, 55%, 50%)`;
 }
 
-function PlaceholderSceneContents({
-  manifest,
-  onReady,
-  otherPlayers,
-  selfPlayer,
-  thirdPerson,
-  role,
-  lastShotTimes = {},
-}: {
+type SceneContentsProps = {
   manifest: MapManifest;
   onReady?: (morphMeshes: Map<string, THREE.Object3D>) => void;
+  onSceneReady?: (planes: FloorPlane[]) => void;
   otherPlayers: PlayerRow[];
+  role: PlayerRole;
   selfPlayer?: PlayerRow | null;
   thirdPerson: boolean;
-  role: PlayerRole;
+  playerPositionRef: MutableRefObject<THREE.Vector3>;
   lastShotTimes?: Record<string, number>;
-}) {
+};
+
+type GltfSceneContentsProps = Omit<SceneContentsProps, 'playerPositionRef'> & {
+  playerPositionRef: MutableRefObject<THREE.Vector3>;
+};
+
+type PlaceholderSceneContentsProps = Omit<SceneContentsProps, 'playerPositionRef'> & {
+  playerPositionRef: MutableRefObject<THREE.Vector3>;
+};
+
+function PlaceholderSceneContents(props: PlaceholderSceneContentsProps) {
+  const {
+    manifest,
+    onReady,
+    onSceneReady,
+    otherPlayers,
+    selfPlayer,
+    thirdPerson,
+    playerPositionRef,
+    role,
+    lastShotTimes = {},
+  } = props;
   const registered = useRef(false);
   const groupRef = useRef<THREE.Group>(null);
 
@@ -1501,6 +1703,12 @@ function PlaceholderSceneContents({
     registered.current = true;
     onReady?.(morphMeshes);
   }
+
+  // Placeholder scene has no authored floors beyond the ground, so
+  // inform the parent that there are no extra scene-derived planes.
+  useEffect(() => {
+    onSceneReady?.([]);
+  }, [onSceneReady]);
 
   const floorWidth = manifest.bounds.max[0] - manifest.bounds.min[0];
   const floorDepth = manifest.bounds.max[2] - manifest.bounds.min[2];
@@ -1551,6 +1759,7 @@ function PlaceholderSceneContents({
         morphables={manifest.morphables}
         thirdPerson={thirdPerson}
         lastShotTimes={lastShotTimes}
+        playerPositionRef={playerPositionRef}
       />
       <OtherPlayers players={otherPlayers} morphables={manifest.morphables} lastShotTimes={lastShotTimes} />
     </>

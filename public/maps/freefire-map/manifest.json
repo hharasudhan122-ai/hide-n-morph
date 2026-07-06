@@ -1,0 +1,461 @@
+{
+  "id": "freefire-map",
+  "name": "Freefire Circuit",
+  "version": 1,
+  "sceneFile": "scene.glb",
+  "thumbnail": "thumbnail.jpg",
+  "usePlaceholderGeometry": false,
+  "buildingWalls": [],
+  "bounds": {
+    "min": [-165, 0, -120],
+    "max": [110, 20, 150]
+  },
+  "spawns": {
+    "seeker": [[0, 0, 0], [80, 0, -10], [-80, 0, 10]],
+    "hider": [[-150, 0, -30], [150, 0, -30], [-150, 0, 0], [150, 0, 0], [-50, 0, 10], [50, 0, 10]]
+  },
+  "version": 2,
+  "morphables": [
+    {
+      "id": "crate_01",
+      "nodeName": "crate-small",
+      "modelFile": "models/crate-small.glb",
+      "groupId": "crate_cluster",
+      "position": [-6, 0, -6],
+      "rotationY": 0,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 0.4, "height": 0.6 }
+    },
+    {
+      "id": "crate_02",
+      "nodeName": "crate-small",
+      "modelFile": "models/crate-small.glb",
+      "groupId": "crate_cluster",
+      "position": [-2, 0, -3],
+      "rotationY": 30,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 0.4, "height": 0.6 }
+    },
+    {
+      "id": "crate_03",
+      "nodeName": "crate-medium",
+      "modelFile": "models/crate-medium.glb",
+      "groupId": "crate_cluster",
+      "position": [4, 0, -2],
+      "rotationY": 15,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 0.6, "height": 0.8 }
+    },
+    {
+      "id": "trash_01",
+      "nodeName": "trashcan",
+      "modelFile": "models/trashcan.glb",
+      "groupId": "scattered",
+      "position": [6, 0, 4],
+      "rotationY": 90,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 0.35, "height": 0.8 }
+    },
+    {
+      "id": "shelf_01",
+      "nodeName": "shelf-end",
+      "modelFile": "models/shelf-end.glb",
+      "groupId": "scattered",
+      "position": [-4, 0, 5],
+      "rotationY": -45,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 0.9, "height": 1.2 }
+    },
+    {
+      "id": "gun_01",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [-20, 0, -44],
+      "rotationY": 45,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_02",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_desert_eagle.glb",
+      "groupId": "freefire_guns",
+      "position": [20, 0, -44],
+      "rotationY": 90,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_03",
+      "nodeName": "",
+      "modelFile": "models/free_fire_cobra_mp40_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [-25, 0, 11],
+      "rotationY": 160,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_04",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_m590.glb",
+      "groupId": "freefire_guns",
+      "position": [25, 0, 11],
+      "rotationY": 250,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_05",
+      "nodeName": "",
+      "modelFile": "models/green_flame_draco_m1014_evo_gun_skin_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [-30, 0, -30],
+      "rotationY": 10,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_06",
+      "nodeName": "",
+      "modelFile": "models/ump_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [-10, 0, -22],
+      "rotationY": 315,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_07",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [10, 0, -16],
+      "rotationY": 135,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_08",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_desert_eagle.glb",
+      "groupId": "freefire_guns",
+      "position": [30, 0, -25],
+      "rotationY": 200,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_09",
+      "nodeName": "",
+      "modelFile": "models/free_fire_cobra_mp40_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [50, 0, -32],
+      "rotationY": 300,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_10",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_m590.glb",
+      "groupId": "freefire_guns",
+      "position": [70, 0, -10],
+      "rotationY": 45,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_11",
+      "nodeName": "",
+      "modelFile": "models/green_flame_draco_m1014_evo_gun_skin_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [90, 0, -4],
+      "rotationY": 90,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_12",
+      "nodeName": "",
+      "modelFile": "models/ump_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [95, 0, 22],
+      "rotationY": 225,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_13",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [-95, 0, -62],
+      "rotationY": 110,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_14",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_desert_eagle.glb",
+      "groupId": "freefire_guns",
+      "position": [10, 0, 8],
+      "rotationY": 180,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_15",
+      "nodeName": "",
+      "modelFile": "models/free_fire_cobra_mp40_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [30, 0, 8],
+      "rotationY": 270,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_16",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_m590.glb",
+      "groupId": "freefire_guns",
+      "position": [40, 0, 4],
+      "rotationY": 130,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_17",
+      "nodeName": "",
+      "modelFile": "models/green_flame_draco_m1014_evo_gun_skin_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [60, 0, 6],
+      "rotationY": 35,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_18",
+      "nodeName": "",
+      "modelFile": "models/ump_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [100, 0, 2],
+      "rotationY": 15,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_19",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [95, 0, 22],
+      "rotationY": 210,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_20",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_desert_eagle.glb",
+      "groupId": "freefire_guns",
+      "position": [30, 0, 11],
+      "rotationY": 80,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_21",
+      "nodeName": "",
+      "modelFile": "models/free_fire_cobra_mp40_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [-30, 0, 12],
+      "rotationY": 330,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_22",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_m590.glb",
+      "groupId": "freefire_guns",
+      "position": [8, 0, 18],
+      "rotationY": 105,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_23",
+      "nodeName": "",
+      "modelFile": "models/green_flame_draco_m1014_evo_gun_skin_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [30, 0, 14],
+      "rotationY": 240,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_24",
+      "nodeName": "",
+      "modelFile": "models/ump_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [60, 0, -6],
+      "rotationY": 300,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    }
+    ,
+    {
+      "id": "gun_floor_01",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun.glb",
+      "groupId": "freefire_guns",
+      "position": [6, 0, 6],
+      "rotationY": 45,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_floor_02",
+      "nodeName": "",
+      "modelFile": "models/free_fire_gun_desert_eagle.glb",
+      "groupId": "freefire_guns",
+      "position": [10, 0, 6],
+      "rotationY": 90,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "gun_floor_03",
+      "nodeName": "",
+      "modelFile": "models/ump_free_fire.glb",
+      "groupId": "freefire_guns",
+      "position": [8, 0, 10],
+      "rotationY": 180,
+      "scale": [0.18, 0.18, 0.18],
+      "footprint": { "radius": 0.22, "height": 0.2 }
+    },
+    {
+      "id": "dg_01",
+      "nodeName": "",
+      "modelFile": "models/free_fire_death_guardian.glb",
+      "groupId": "death_guardian_group",
+      "position": [-70, 0, -30],
+      "rotationY": 20,
+      "scale": [75, 75, 75],
+      "footprint": { "radius": 1.0, "height": 2.0 }
+    },
+    {
+      "id": "dg_02",
+      "nodeName": "",
+      "modelFile": "models/free_fire_death_guardian.glb",
+      "groupId": "death_guardian_group",
+      "position": [70, 0, -30],
+      "rotationY": 160,
+      "scale": [75, 75, 75],
+      "footprint": { "radius": 1.0, "height": 2.0 }
+    },
+    {
+      "id": "dg_03",
+      "nodeName": "",
+      "modelFile": "models/free_fire_death_guardian.glb",
+      "groupId": "death_guardian_group",
+      "position": [-40, 0, 15],
+      "rotationY": 250,
+      "scale": [75, 75, 75],
+      "footprint": { "radius": 1.0, "height": 2.0 }
+    },
+    {
+      "id": "dg_04",
+      "nodeName": "",
+      "modelFile": "models/free_fire_death_guardian.glb",
+      "groupId": "death_guardian_group",
+      "position": [40, 0, 15],
+      "rotationY": 300,
+      "scale": [75, 75, 75],
+      "footprint": { "radius": 1.0, "height": 2.0 }
+    },
+    {
+      "id": "jeep_01",
+      "nodeName": "",
+      "modelFile": "models/vehicle_jeep_skin_default.glb",
+      "groupId": "jeep_group",
+      "position": [-80, 0, 5],
+      "rotationY": 30,
+      "scale": [100, 100, 100],
+      "footprint": { "radius": 2.0, "height": 1.8 }
+    },
+    {
+      "id": "jeep_02",
+      "nodeName": "",
+      "modelFile": "models/vehicle_jeep_skin_default.glb",
+      "groupId": "jeep_group",
+      "position": [80, 0, 5],
+      "rotationY": 90,
+      "scale": [100, 100, 100],
+      "footprint": { "radius": 2.0, "height": 1.8 }
+    },
+    {
+      "id": "jeep_03",
+      "nodeName": "",
+      "modelFile": "models/vehicle_jeep_skin_default.glb",
+      "groupId": "jeep_group",
+      "position": [-55, 0, -50],
+      "rotationY": 200,
+      "scale": [100, 100, 100],
+      "footprint": { "radius": 2.0, "height": 1.8 }
+    },
+    {
+      "id": "jeep_04",
+      "nodeName": "",
+      "modelFile": "models/vehicle_jeep_skin_default.glb",
+      "groupId": "jeep_group",
+      "position": [55, 0, -50],
+      "rotationY": 340,
+      "scale": [100, 100, 100],
+      "footprint": { "radius": 2.0, "height": 1.8 }
+    },
+    {
+      "id": "forklift_01",
+      "nodeName": "",
+      "modelFile": "models/free_fire_forklift_truck.glb",
+      "groupId": "forklift_group",
+      "position": [-20, 0, -45],
+      "rotationY": 45,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 2.0, "height": 2.2 }
+    },
+    {
+      "id": "forklift_02",
+      "nodeName": "",
+      "modelFile": "models/free_fire_forklift_truck.glb",
+      "groupId": "forklift_group",
+      "position": [20, 0, -45],
+      "rotationY": 135,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 2.0, "height": 2.2 }
+    },
+    {
+      "id": "forklift_03",
+      "nodeName": "",
+      "modelFile": "models/free_fire_forklift_truck.glb",
+      "groupId": "forklift_group",
+      "position": [-90, 0, -10],
+      "rotationY": 270,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 2.0, "height": 2.2 }
+    },
+    {
+      "id": "forklift_04",
+      "nodeName": "",
+      "modelFile": "models/free_fire_forklift_truck.glb",
+      "groupId": "forklift_group",
+      "position": [90, 0, -10],
+      "rotationY": 10,
+      "scale": [1.0, 1.0, 1.0],
+      "footprint": { "radius": 2.0, "height": 2.2 }
+    }
+  ]
+}

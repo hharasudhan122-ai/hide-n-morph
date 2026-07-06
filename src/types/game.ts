@@ -56,6 +56,15 @@ export interface MapBounds {
   max: Vec3Tuple;
 }
 
+export interface FloorPlane {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  height: number;
+  isCeiling: boolean;
+}
+
 export interface MapSpawns {
   seeker: Vec3Tuple[];
   hider: Vec3Tuple[];
@@ -79,6 +88,30 @@ export interface WallSegment {
   rotationY: number;
 }
 
+/** An invisible axis-aligned box that blocks horizontal movement — used
+ * to add real wall collision on top of an imported real-asset scene.glb
+ * (e.g. freefire-map), where the actual wall geometry is merged by
+ * material across the whole model (not split per building/per wall), so
+ * there's nothing in the GLB itself we can reliably collide against.
+ * Author these by walking up to a real wall in-game (the on-screen X/Y/Z
+ * readout makes this easy) and noting the X/Z at each corner, and the Y
+ * range the wall actually spans. Leave a gap in a rectangle's coverage
+ * (i.e. don't add a segment across a doorway) to keep that opening
+ * walkable. */
+export interface WallCollider {
+  id: string;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** World-space Y range this collider blocks. Set maxY comfortably
+   * above normal jump height (~2.25m arc) for a real wall so it can't be
+   * hopped over; use a lower maxY on purpose for something like a
+   * low parapet or crate line you SHOULD be able to jump. */
+  minY: number;
+  maxY: number;
+}
+
 export interface MapManifest {
   id: string;
   name: string;
@@ -100,6 +133,13 @@ export interface MapManifest {
    * enough wall segments end-to-end to cover each side, with corners at
    * the four corners and a door segment at the entrance. */
   walls?: WallSegment[];
+  /** Invisible collision boxes layered over an imported scene.glb's
+   * building walls — see WallCollider for why this is separate from
+   * `walls` (which is only for the placeholder-mode Kenney wall pieces
+   * and has no collision of its own either). Empty/omitted means no
+   * extra wall collision beyond bounds/colliders/floorPlanes, i.e.
+   * today's walk-through-walls behavior. */
+  buildingWalls?: WallCollider[];
   floorTiles?: SceneDressingItem[];
   /** Ceiling surface — same tile-grid approach as floorTiles, positioned
    * at bounds.max[1]. Purely visual (no collision; the player's actual

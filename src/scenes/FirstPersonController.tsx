@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Vec3Tuple, MapBounds, MorphableProp } from '../types/game';
+import type { Vec3Tuple, MapBounds, MorphableProp, FloorPlane, WallCollider } from '../types/game';
 
 const WALK_SPEED = 4; // meters per second
 const SPRINT_SPEED = 6.5; // meters per second
@@ -26,6 +26,11 @@ interface FirstPersonControllerProps {
    * per logical wall; see the remaining-work note where this is wired
    * in MapScene.tsx if wall collision becomes the next priority. */
   colliders?: MorphableProp[];
+  /** Invisible box colliders laid over an imported scene.glb's building
+   * walls (see WallCollider) — the actual thing that fixes "walking
+   * straight through walls", since neither colliders (circular props)
+   * nor floorPlanes (horizontal surfaces) block a vertical wall run. */
+  wallColliders?: WallCollider[];
   /** Elevated rectangular surfaces (the second floor) — see FloorPlane.
    * Checked alongside colliders for both horizontal blocking and
    * landing-on-top, since structurally it's the same "solid surface
@@ -57,16 +62,24 @@ interface FirstPersonControllerProps {
  * from below like any other solid surface — same headroom logic as a
  * prop collider, just rectangular instead of circular and intended to
  * cover a large region rather than one small object. */
-export interface FloorPlane {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  height: number;
-}
-
 function insideFloorPlane(x: number, z: number, plane: FloorPlane): boolean {
   return x >= plane.minX && x <= plane.maxX && z >= plane.minZ && z <= plane.maxZ;
+}
+
+/** True if a player standing with feet at feetHeight (head therefore at
+ * feetHeight + PLAYER_HEIGHT) at (x, z) overlaps a WallCollider box. The
+ * box is inflated by PLAYER_RADIUS on X/Z so the player's body can't
+ * clip halfway into a wall the way a zero-width point check would allow
+ * — same reasoning as the circle-vs-radius check other colliders use. */
+function insideWallCollider(x: number, z: number, feetHeight: number, wall: WallCollider): boolean {
+  const inX = x >= wall.minX - PLAYER_RADIUS && x <= wall.maxX + PLAYER_RADIUS;
+  const inZ = z >= wall.minZ - PLAYER_RADIUS && z <= wall.maxZ + PLAYER_RADIUS;
+  if (!inX || !inZ) return false;
+  const headHeight = feetHeight + PLAYER_HEIGHT;
+  // Blocks if the player's vertical span (feet to head) overlaps the
+  // wall's blocked Y range at all — a real wall should stop you whether
+  // you're crouched, standing, or mid-jump, not just at foot level.
+  return headHeight > wall.minY && feetHeight < wall.maxY;
 }
 
 /** True if a player (treated as a vertical cylinder, PLAYER_RADIUS wide)
@@ -81,7 +94,8 @@ function collidesAt(
   z: number,
   feetHeight: number,
   colliders: MorphableProp[],
-  floorPlanes: FloorPlane[] = []
+  floorPlanes: FloorPlane[] = [],
+  wallColliders: WallCollider[] = []
 ): boolean {
   for (const c of colliders) {
     const dx = x - c.position[0];
@@ -99,6 +113,11 @@ function collidesAt(
       return true;
     }
   }
+  for (const wall of wallColliders) {
+    if (insideWallCollider(x, z, feetHeight, wall)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -112,6 +131,7 @@ function collidesAt(
 function groundHeightAt(
   x: number,
   z: number,
+  feetHeight: number,
   colliders: MorphableProp[],
   floorPlanes: FloorPlane[] = []
 ): number {
@@ -125,11 +145,29 @@ function groundHeightAt(
     }
   }
   for (const plane of floorPlanes) {
-    if (insideFloorPlane(x, z, plane) && plane.height > highest) {
+    if (!plane.isCeiling && insideFloorPlane(x, z, plane) && plane.height <= feetHeight + 0.05 && plane.height > highest) {
       highest = plane.height;
     }
   }
   return highest;
+}
+
+function ceilingHeightAt(
+  x: number,
+  z: number,
+  feetHeight: number,
+  floorPlanes: FloorPlane[] = []
+): number {
+  let lowestCeiling = Infinity;
+  const headY = feetHeight + PLAYER_HEIGHT;
+  for (const plane of floorPlanes) {
+    if (!plane.isCeiling) continue;
+    if (!insideFloorPlane(x, z, plane)) continue;
+    if (plane.height >= headY - 0.05 && plane.height < lowestCeiling) {
+      lowestCeiling = plane.height;
+    }
+  }
+  return lowestCeiling === Infinity ? Number.MAX_VALUE : lowestCeiling;
 }
 
 /** Bare WASD + pointer-lock-look first-person movement, now with basic
@@ -138,8 +176,10 @@ function groundHeightAt(
  * <PointerLockControls /> already in MapScene for the mouse-look part;
  * this component only handles keyboard-driven translation and keeps the
  * player within manifest.bounds. */
-export function FirstPersonController({ startPosition, bounds, colliders = [], floorPlanes = [], playerPositionRef, thirdPerson = false, onPositionChange, disabled = false, mobileMoveInput = { x: 0, y: 0 }, mobileLookInput = 0, mobileSprint = false, jumpRequestCount = 0 }: FirstPersonControllerProps) {
-  const { camera } = useThree();
+export function FirstPersonController({ startPosition, bounds, colliders = [], wallColliders = [], floorPlanes = [], playerPositionRef, thirdPerson = false, onPositionChange, disabled = false, mobileMoveInput = { x: 0, y: 0 }, mobileLookInput = 0, mobileSprint = false, jumpRequestCount = 0 }: FirstPersonControllerProps) {
+  const { camera, scene } = useThree();
+  const raycasterRef = useRef<THREE.Raycaster | null>(null);
+  const previousSurfaceHeightRef = useRef<number>(0);
   const keysPressed = useRef<Set<string>>(new Set());
   const disabledRef = useRef(disabled);
   const velocity = useRef(new THREE.Vector3());
@@ -245,14 +285,14 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], f
       const candidateX = playerPositionRef.current.x + velocity.current.x;
       const candidateZ = playerPositionRef.current.z + velocity.current.z;
 
-      if (!collidesAt(candidateX, candidateZ, feetHeight, colliders, floorPlanes)) {
+      if (!collidesAt(candidateX, candidateZ, feetHeight, colliders, floorPlanes, wallColliders)) {
         playerPositionRef.current.x = candidateX;
         playerPositionRef.current.z = candidateZ;
       } else {
-        if (!collidesAt(candidateX, playerPositionRef.current.z, feetHeight, colliders, floorPlanes)) {
+        if (!collidesAt(candidateX, playerPositionRef.current.z, feetHeight, colliders, floorPlanes, wallColliders)) {
           playerPositionRef.current.x = candidateX;
         }
-        if (!collidesAt(playerPositionRef.current.x, candidateZ, feetHeight, colliders, floorPlanes)) {
+        if (!collidesAt(playerPositionRef.current.x, candidateZ, feetHeight, colliders, floorPlanes, wallColliders)) {
           playerPositionRef.current.z = candidateZ;
         }
       }
@@ -269,7 +309,92 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], f
     // fall back toward the floor (or a different, lower collider)
     // rather than staying locked to whatever surface you landed on
     // originally.
-    const surfaceHeight = groundHeightAt(playerPositionRef.current.x, playerPositionRef.current.z, colliders, floorPlanes);
+    const feetHeight = heightAboveGround.current;
+    let surfaceHeight = groundHeightAt(playerPositionRef.current.x, playerPositionRef.current.z, feetHeight, colliders, floorPlanes);
+    const ceilingHeight = ceilingHeightAt(playerPositionRef.current.x, playerPositionRef.current.z, feetHeight, floorPlanes);
+
+    // Raycast against the rendered scene to pick up authored geometry
+    // (stairs, floors, ramps) that aren't represented as manifest
+    // colliders/floorPlanes. Start the ray from the player's current
+    // head height so it does not hit a roof/ceiling above the player
+    // and incorrectly treat that as the ground.
+    try {
+      if (!raycasterRef.current) raycasterRef.current = new THREE.Raycaster();
+      const rc = raycasterRef.current;
+      const origin = new THREE.Vector3(
+        playerPositionRef.current.x,
+        playerPositionRef.current.y + 0.5,
+        playerPositionRef.current.z
+      );
+      rc.set(origin, new THREE.Vector3(0, -1, 0));
+      rc.far = 50;
+      const intersects = scene ? rc.intersectObject(scene, true) : [];
+      const headY = playerPositionRef.current.y;
+      let bestHitY = -Infinity;
+      for (const hit of intersects) {
+        // Skip the local player's own 3rd-person body mesh (tagged via
+        // userData.excludeFromGroundRay on its wrapping group in
+        // MapScene.tsx). This ray starts directly above the player's own
+        // x/z, so once that mesh exists in the scene (3rd-person view
+        // only — it isn't rendered in 1st person) it self-intersects,
+        // gets read as "ground" above the real floor, and the player
+        // snaps up onto it — which redraws the mesh even higher, which
+        // the next frame hits again. Without this skip that feedback
+        // loop runs away and launches the player into the sky, which is
+        // exactly the bug this guards against.
+        let node: THREE.Object3D | null = hit.object;
+        let excluded = false;
+        while (node) {
+          if (node.userData?.excludeFromGroundRay) {
+            excluded = true;
+            break;
+          }
+          node = node.parent;
+        }
+        if (excluded) continue;
+
+        const hitY = hit.point.y;
+        if (hitY <= headY - 0.05 && hitY > bestHitY) {
+          bestHitY = hitY;
+        }
+      }
+      if (bestHitY !== -Infinity && bestHitY > surfaceHeight) {
+        // Only accept this as the new ground height if it's a small
+        // step up from where the player's feet currently are, OR
+        // they're actually airborne (mid-jump) and legitimately landing
+        // on something taller. Without this cap, this raycast — which
+        // runs every frame regardless of collidesAt/floorPlane gating —
+        // will snap the player straight up onto the top of ANY taller
+        // surface (a ramp cap, a raised platform, a truck bed, etc.) the
+        // instant it becomes the nearest thing directly underneath them,
+        // even though they only walked up to its side. That's exactly
+        // the "walk into it and get teleported on top of it" bug: real
+        // stairs work fine today because each individual step is a tiny
+        // rise (well under MAX_STEP_UP), but anything taller was being
+        // treated the same way — one big instant snap instead of
+        // requiring an actual jump.
+        const MAX_STEP_UP = 0.6; // meters — generous for stairs/curbs,
+                                   // too small to silently climb a
+                                   // waist-height-or-taller platform
+        const isAirborne = verticalVelocity.current !== 0 || !isGroundedRef.current;
+        const stepUp = bestHitY - heightAboveGround.current;
+        if (isAirborne || stepUp <= MAX_STEP_UP) {
+          surfaceHeight = bestHitY;
+        }
+      }
+    } catch (e) {
+      // Raycast may fail in exotic contexts; fail silently and fall
+      // back to collider-based ground logic.
+    }
+
+    // Stabilize small fluctuations in detected surface height to avoid
+    // jitter that can cause unintended automatic jumping/clipping.
+    const prevSurface = previousSurfaceHeightRef.current ?? 0;
+    if (Math.abs(surfaceHeight - prevSurface) < 0.05) {
+      surfaceHeight = prevSurface;
+    } else {
+      previousSurfaceHeightRef.current = surfaceHeight;
+    }
 
     if (heightAboveGround.current > surfaceHeight || verticalVelocity.current > 0) {
       verticalVelocity.current += GRAVITY * delta;
@@ -288,6 +413,14 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], f
       heightAboveGround.current = surfaceHeight;
       isGroundedRef.current = true;
     }
+
+    const headY = PLAYER_HEIGHT + heightAboveGround.current;
+    if (headY > ceilingHeight - 0.05) {
+      heightAboveGround.current = ceilingHeight - PLAYER_HEIGHT;
+      verticalVelocity.current = Math.min(verticalVelocity.current, 0);
+      isGroundedRef.current = false;
+    }
+
     playerPositionRef.current.y = PLAYER_HEIGHT + heightAboveGround.current;
     if (!thirdPerson) {
       camera.position.copy(playerPositionRef.current);

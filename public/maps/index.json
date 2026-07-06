@@ -4,6 +4,11 @@
       "id": "quickstop-store",
       "name": "QuickStop Convenience Store",
       "thumbnail": "/maps/quickstop-store/thumbnail.jpg"
+    },
+    {
+      "id": "freefire-map",
+      "name": "Freefire Circuit",
+      "thumbnail": "/maps/freefire-map/thumbnail.jpg"
     }
   ]
 }

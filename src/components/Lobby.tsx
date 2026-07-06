@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoom, joinRoom, leaveRoom, subscribeToRoom, startGame } from '../lib/rooms';
 import type { RoomRow, PlayerRow } from '../types/game';
 
+const MAP_OPTIONS = [
+  { id: 'quickstop-store', label: 'QuickStop Convenience Store' },
+  { id: 'freefire-map', label: 'Freefire Circuit' },
+];
+
 interface LobbyProps {
   onGameStart: (room: RoomRow, players: PlayerRow[], selfId: string) => void;
 }
@@ -17,6 +22,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
   const [selfId, setSelfId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedMapId, setSelectedMapId] = useState('quickstop-store');
 
   // Refs so the subscription callback (set up once per room.id) always
   // reads the LATEST players/selfId, not whatever they were when the
@@ -58,7 +64,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
     setBusy(true);
     setErrorMsg(null);
     try {
-      const { room: newRoom, player } = await createRoom(displayName.trim());
+      const { room: newRoom, player } = await createRoom(displayName.trim(), selectedMapId);
       setRoom(newRoom);
       setSelfId(player.id);
       setPlayers([player]);
@@ -155,6 +161,16 @@ export function Lobby({ onGameStart }: LobbyProps) {
             maxLength={20}
           />
           {errorMsg && <p className="lobby-error">{errorMsg}</p>}
+          <label className="lobby-field-label" htmlFor="map-select">
+            Map
+          </label>
+          <select id="map-select" value={selectedMapId} onChange={(e) => setSelectedMapId(e.target.value)}>
+            {MAP_OPTIONS.map((map) => (
+              <option key={map.id} value={map.id}>
+                {map.label}
+              </option>
+            ))}
+          </select>
           <button disabled={busy} onClick={handleCreate}>{busy ? 'Creating…' : 'Create'}</button>
           <button disabled={busy} onClick={() => setScreen('menu')} className="btn-secondary">Back</button>
         </div>
@@ -197,6 +213,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
           <span className="room-code-value">{room?.code}</span>
         </div>
         <p className="lobby-subtitle">Share this code with friends to join!</p>
+        <p className="lobby-subtitle">Selected map: {MAP_OPTIONS.find((m) => m.id === room?.map_id)?.label ?? room?.map_id}</p>
         <ul className="player-list">
           {players.map((p) => (
             <li key={p.id}>

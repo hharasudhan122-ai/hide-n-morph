@@ -167,8 +167,16 @@ export function GameScreen({ room: initialRoom, selfPlayerId, initialPlayers, on
 
           const updated = payload.new as PlayerRow;
           setOtherPlayers((prev) => {
-            const exists = prev.some((p) => p.id === updated.id);
-            if (exists) {
+            const idx = prev.findIndex((p) => p.id === updated.id);
+            if (idx !== -1) {
+              const prevPlayer = prev[idx];
+              if (
+                typeof prevPlayer.pos_y === 'number' &&
+                typeof updated.pos_y === 'number' &&
+                updated.pos_y > prevPlayer.pos_y + 0.5
+              ) {
+                console.warn('[realtime] incoming pos_y jump for', updated.id, prevPlayer.pos_y, '->', updated.pos_y);
+              }
               return prev.map((p) => (p.id === updated.id ? updated : p));
             }
             // INSERT case: a new player joined mid-round (e.g. someone
@@ -244,6 +252,17 @@ export function GameScreen({ room: initialRoom, selfPlayerId, initialPlayers, on
     };
     if (!isMorphed) {
       updatePayload.rot_y = rotationY;
+    }
+
+    // Clamp sudden upward jumps in pos_y to prevent 3rd-person drift.
+    // This also applies whether morphed or not — some clients reported
+    // continuous upward drift when toggling into 3rd-person as a
+    // character. When we clamp, log to console so it's easy to trace
+    // during testing.
+    const globalMaxSafe = (manifest?.bounds?.max?.[1] ?? 200) + 2;
+    if (updatePayload.pos_y > globalMaxSafe) {
+      console.warn('[position-sync] clamping pos_y', updatePayload.pos_y, '->', globalMaxSafe);
+      updatePayload.pos_y = globalMaxSafe;
     }
 
     // Fire-and-forget; throttling happens here rather than in
