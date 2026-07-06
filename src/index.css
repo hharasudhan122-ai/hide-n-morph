@@ -461,3 +461,130 @@ html, body, #root {
   height: 100%;
   transition: width 0.2s ease-out, background 0.2s ease-out;
 }
+
+/* ------------------------------------------------------------------ */
+/* Mobile touch controls — MobileControls.tsx references these class  */
+/* names but no CSS backed them anywhere in the project, so on a phone */
+/* everything rendered as unstyled divs/default buttons: no visible    */
+/* joystick circle, opaque default button backgrounds, and no fixed    */
+/* positioning (so it just sat in normal document flow at the bottom). */
+/* ------------------------------------------------------------------ */
+
+.mobile-controls-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  /* Let touches pass through to the canvas/UI beneath by default;
+     only the actual joystick pads and buttons re-enable pointer
+     events below. Without this, the overlay's own full-screen box
+     would swallow every touch on the entire screen. */
+  pointer-events: none;
+}
+
+.mobile-landscape-warning {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mobile-controls-row {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  pointer-events: none;
+}
+
+.mobile-joystick-pad {
+  pointer-events: auto;
+  /* Critical for touch: without this the browser can hijack the
+     drag gesture for page scroll/pinch-zoom before it ever reaches
+     our pointer event handlers, which looks exactly like "the
+     joystick doesn't work". */
+  touch-action: none;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mobile-joystick-pad-right {
+  /* Same visual treatment as the move pad; kept as a separate class
+     in case the look joystick ever needs its own tweak (e.g. a
+     different tint) without touching the move pad. */
+}
+
+.joystick-label {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.mobile-controls-actions {
+  position: fixed;
+  right: 20px;
+  bottom: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.mobile-action-button {
+  pointer-events: auto;
+  touch-action: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  -webkit-user-select: none;
+  user-select: none;
+  /* Buttons are <button> elements — reset the platform's default
+     opaque gray/white button chrome so our transparent background
+     above actually shows through. */
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+.mobile-action-button:active {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.mobile-action-primary {
+  width: 76px;
+  height: 76px;
+  background: rgba(255, 60, 60, 0.35);
+  border-color: rgba(255, 90, 90, 0.6);
+}
+
+.mobile-action-primary:active {
+  background: rgba(255, 60, 60, 0.55);
+}
+
