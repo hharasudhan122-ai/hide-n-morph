@@ -430,7 +430,14 @@ export function MapScene({
             lastShotTimes={lastShotTimes}
           />
         </Suspense>
-        <PointerLockControls />
+        {/* Desktop-only. Drei's PointerLockControls (with no `selector` prop)
+            attaches a document-wide 'click' listener that calls
+            requestPointerLock() on every tap anywhere on the page — mobile
+            browsers fire a synthetic click after every touch, so this was
+            firing on every joystick tap too. Pointer Lock is a mouse-only
+            concept with no business being active during a touch session, so
+            it's simplest to just not mount it at all once mobile is detected. */}
+        {!mobileActive && <PointerLockControls />}
         {thirdPerson && <ThirdPersonCamera selfPlayer={selfPlayer} enabled={thirdPerson} maxCameraY={manifest.bounds.max[1]} />}
         <FirstPersonController
           startPosition={startPosition}
@@ -874,10 +881,26 @@ function GltfSceneContents(props: GltfSceneContentsProps) {
           averageNormalY = worldUp.y;
         }
 
+        // Keep the normal check only to exclude vertical wall meshes (a
+        // wall's face normal points sideways, so abs(averageNormalY) stays
+        // near 0 and it's correctly skipped above the area/thickness check).
         if (Math.abs(averageNormalY) < 0.6) return;
-        const isCeiling = averageNormalY < 0;
-        const height = isCeiling ? box.min.y : box.max.y;
-        planes.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, height, isCeiling });
+
+        // Kenney-style meshes are typically single-sided — a store roof
+        // only has its top-facing normal authored, there's no separate
+        // underside mesh with a downward normal. Trusting the normal's
+        // SIGN to decide floor-vs-ceiling therefore never produces a
+        // ceiling plane for geometry like that at all, which is exactly
+        // why jumping under the QuickStop roof let the player land on top
+        // of it — there was nothing registered to stop them.
+        // Fix: register every qualifying flat mesh as BOTH a floor (blocks/
+        // supports from below, at its top face) and a ceiling (blocks from
+        // above, at its underside). Since it's thin (size.y <= 1.5 from the
+        // check above), box.min.y and box.max.y are close enough together
+        // that this correctly stops a jumping player right under it,
+        // regardless of which way the mesh's normal happens to point.
+        planes.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, height: box.max.y, isCeiling: false });
+        planes.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, height: box.min.y, isCeiling: true });
       });
       onSceneReady?.(planes);
     } catch (e) {

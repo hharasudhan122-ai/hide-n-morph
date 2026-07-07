@@ -376,9 +376,22 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], w
         const MAX_STEP_UP = 0.6; // meters — generous for stairs/curbs,
                                    // too small to silently climb a
                                    // waist-height-or-taller platform
-        const isAirborne = verticalVelocity.current !== 0 || !isGroundedRef.current;
+        //
+        // NOTE: this used to also accept any height while airborne
+        // (isAirborne bypassed the cap entirely), meant to let a jump land
+        // on something taller. But intentional jump-onto-prop targets
+        // (shelves, freezers) are already handled by groundHeightAt via the
+        // manifest's colliders above — this raycast fallback only exists
+        // for authored static geometry (stairs/ramps), which are small
+        // increments. Bypassing the cap while airborne meant that if a
+        // player ever tunneled above a thin roof mesh in a single frame
+        // (a lag spike / low mobile frame rate producing a large delta),
+        // this would happily snap them onto the roof's exterior top with
+        // no limit at all — exactly the "jump near the ceiling, get
+        // teleported on the roof" bug. Applying MAX_STEP_UP unconditionally
+        // closes that hole without affecting normal prop-jumping.
         const stepUp = bestHitY - heightAboveGround.current;
-        if (isAirborne || stepUp <= MAX_STEP_UP) {
+        if (stepUp <= MAX_STEP_UP) {
           surfaceHeight = bestHitY;
         }
       }

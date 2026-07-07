@@ -104,15 +104,32 @@ export function MobileControls({
         <div
           className="mobile-joystick-pad"
           onPointerDown={(e) => {
-            handleTouchStart();
+            // Register the joystick FIRST, before anything that could
+            // throw (setPointerCapture rejecting a touch-type pointer on
+            // some Android/WebView versions, or the landscape-lock call).
+            // Previously these ran first and, if they threw, the
+            // exception aborted the rest of this handler — moveJoy.start()
+            // never ran, activePointer stayed null, and every subsequent
+            // pointermove was ignored, which is exactly "joystick does
+            // nothing." Movement now registers no matter what happens next.
             const target = e.currentTarget as HTMLDivElement;
-            target.setPointerCapture(e.pointerId);
             moveJoy.start(e.pointerId, e.clientX, e.clientY, target);
+            try {
+              target.setPointerCapture(e.pointerId);
+            } catch {
+              // Movement still works via normal hit-testing; we just lose
+              // tracking if the finger slides off this 120px circle.
+            }
+            handleTouchStart();
           }}
           onPointerMove={(e) => moveJoy.move(e.pointerId, e.clientX, e.clientY)}
           onPointerUp={(e) => {
             if (moveJoy.activePointer === e.pointerId) {
-              (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              try {
+                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              } catch {
+                // no-op — nothing to release if capture never succeeded
+              }
               moveJoy.reset();
             }
           }}
@@ -124,15 +141,23 @@ export function MobileControls({
         <div
           className="mobile-joystick-pad mobile-joystick-pad-right"
           onPointerDown={(e) => {
-            handleTouchStart();
             const target = e.currentTarget as HTMLDivElement;
-            target.setPointerCapture(e.pointerId);
             lookJoy.start(e.pointerId, e.clientX, e.clientY, target);
+            try {
+              target.setPointerCapture(e.pointerId);
+            } catch {
+              // see Move pad above
+            }
+            handleTouchStart();
           }}
           onPointerMove={(e) => lookJoy.move(e.pointerId, e.clientX, e.clientY)}
           onPointerUp={(e) => {
             if (lookJoy.activePointer === e.pointerId) {
-              (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              try {
+                (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
+              } catch {
+                // no-op
+              }
               lookJoy.reset();
             }
           }}
@@ -147,8 +172,8 @@ export function MobileControls({
           type="button"
           className="mobile-action-button"
           onPointerDown={() => {
-            handleTouchStart();
             setSprintActive(true);
+            handleTouchStart();
           }}
           onPointerUp={() => setSprintActive(false)}
           onPointerLeave={() => setSprintActive(false)}
@@ -159,8 +184,8 @@ export function MobileControls({
           type="button"
           className="mobile-action-button"
           onPointerDown={() => {
-            handleTouchStart();
             onJump();
+            handleTouchStart();
           }}
         >
           Jump
@@ -169,8 +194,8 @@ export function MobileControls({
           type="button"
           className="mobile-action-button mobile-action-primary"
           onPointerDown={() => {
-            handleTouchStart();
             onAction();
+            handleTouchStart();
           }}
         >
           {actionLabel}
