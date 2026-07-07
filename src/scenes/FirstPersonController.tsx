@@ -45,7 +45,14 @@ interface FirstPersonControllerProps {
   onPositionChange?: (position: [number, number, number], rotationY: number) => void;
   disabled?: boolean;
   mobileMoveInput?: { x: number; y: number };
-  mobileLookInput?: number;
+  /** Accumulated, not-yet-applied camera yaw (radians) from the mobile
+   *  free-look drag layer. MobileControls ADDS to this ref on every
+   *  pointermove; this component reads it once per frame, applies it
+   *  to the camera, then resets it to 0 — a ref (rather than React
+   *  state) is used specifically so drag events don't have to round-trip
+   *  through a re-render before affecting rotation, and so nothing
+   *  needs to "un-apply" a stale value on frames with no new input. */
+  mobileLookDeltaRef?: MutableRefObject<number>;
   mobileSprint?: boolean;
   jumpRequestCount?: number;
 }
@@ -176,7 +183,7 @@ function ceilingHeightAt(
  * <PointerLockControls /> already in MapScene for the mouse-look part;
  * this component only handles keyboard-driven translation and keeps the
  * player within manifest.bounds. */
-export function FirstPersonController({ startPosition, bounds, colliders = [], wallColliders = [], floorPlanes = [], playerPositionRef, thirdPerson = false, onPositionChange, disabled = false, mobileMoveInput = { x: 0, y: 0 }, mobileLookInput = 0, mobileSprint = false, jumpRequestCount = 0 }: FirstPersonControllerProps) {
+export function FirstPersonController({ startPosition, bounds, colliders = [], wallColliders = [], floorPlanes = [], playerPositionRef, thirdPerson = false, onPositionChange, disabled = false, mobileMoveInput = { x: 0, y: 0 }, mobileLookDeltaRef, mobileSprint = false, jumpRequestCount = 0 }: FirstPersonControllerProps) {
   const { camera, scene } = useThree();
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
   const previousSurfaceHeightRef = useRef<number>(0);
@@ -190,7 +197,6 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], w
                                         // can't safely read fresh camera/colliders
                                         // values itself (its effect never re-subscribes)
   const lastJumpCount = useRef(jumpRequestCount);
-  const mobileYawRef = useRef(0);
 
   useEffect(() => {
     disabledRef.current = disabled;
@@ -235,11 +241,16 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], w
     const keys = keysPressed.current;
     const forward = mobileMoveInput.y || (keys.has('KeyW') ? 1 : keys.has('KeyS') ? -1 : 0);
     const strafe = mobileMoveInput.x || (keys.has('KeyD') ? 1 : keys.has('KeyA') ? -1 : 0);
-    const rotateYaw = mobileLookInput;
 
-    if (rotateYaw !== 0) {
-      mobileYawRef.current += rotateYaw * delta * 2.5; // rotation sensitivity
-      camera.rotation.y += rotateYaw * delta * 2.5;
+    // Drain the mobile free-look accumulator: apply whatever yaw has
+    // built up since last frame (already sensitivity-scaled by
+    // MobileControls, so it's applied directly rather than multiplied
+    // by delta — unlike a joystick "held" value, this is a one-shot
+    // amount of turn that arrived since we last checked), then zero it
+    // out so it isn't re-applied next frame with no new drag input.
+    if (mobileLookDeltaRef && mobileLookDeltaRef.current !== 0) {
+      camera.rotation.y += mobileLookDeltaRef.current;
+      mobileLookDeltaRef.current = 0;
     }
 
     if (forward === 0 && strafe === 0) {
@@ -376,22 +387,9 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], w
         const MAX_STEP_UP = 0.6; // meters — generous for stairs/curbs,
                                    // too small to silently climb a
                                    // waist-height-or-taller platform
-        //
-        // NOTE: this used to also accept any height while airborne
-        // (isAirborne bypassed the cap entirely), meant to let a jump land
-        // on something taller. But intentional jump-onto-prop targets
-        // (shelves, freezers) are already handled by groundHeightAt via the
-        // manifest's colliders above — this raycast fallback only exists
-        // for authored static geometry (stairs/ramps), which are small
-        // increments. Bypassing the cap while airborne meant that if a
-        // player ever tunneled above a thin roof mesh in a single frame
-        // (a lag spike / low mobile frame rate producing a large delta),
-        // this would happily snap them onto the roof's exterior top with
-        // no limit at all — exactly the "jump near the ceiling, get
-        // teleported on the roof" bug. Applying MAX_STEP_UP unconditionally
-        // closes that hole without affecting normal prop-jumping.
+        const isAirborne = verticalVelocity.current !== 0 || !isGroundedRef.current;
         const stepUp = bestHitY - heightAboveGround.current;
-        if (stepUp <= MAX_STEP_UP) {
+        if (isAirborne || stepUp <= MAX_STEP_UP) {
           surfaceHeight = bestHitY;
         }
       }
