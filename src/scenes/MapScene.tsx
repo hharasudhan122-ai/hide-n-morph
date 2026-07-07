@@ -338,13 +338,13 @@ export function MapScene({
   const [mobileActive, setMobileActive] = useState(false);
   const [landscapeHint, setLandscapeHint] = useState(false);
   const [moveInput, setMoveInput] = useState({ x: 0, y: 0 });
-  // Accumulated mobile free-look yaw (radians), written by MobileControls
-  // on every drag pointermove and drained once per frame inside
-  // FirstPersonController. A ref rather than state: it needs to survive
-  // across frames without a React re-render round-trip, and the
+  // Accumulated mobile free-look yaw+pitch (radians), written by
+  // MobileControls on every drag pointermove and drained once per frame
+  // inside FirstPersonController. A ref rather than state: it needs to
+  // survive across frames without a React re-render round-trip, and the
   // "consume then zero it" pattern (owned by FirstPersonController)
   // wouldn't compose cleanly with React's state update batching.
-  const lookDeltaRef = useRef(0);
+  const lookDeltaRef = useRef({ yaw: 0, pitch: 0 });
   const [sprintActive, setSprintActive] = useState(false);
   const [jumpRequestCount, setJumpRequestCount] = useState(0);
   const [morphRequestCount, setMorphRequestCount] = useState(0);
@@ -485,8 +485,9 @@ export function MapScene({
       {mobileActive && (
         <MobileControls
           onMoveChange={setMoveInput}
-          onLookDelta={(dx) => {
-            lookDeltaRef.current += dx;
+          onLookDelta={(deltaYaw, deltaPitch) => {
+            lookDeltaRef.current.yaw += deltaYaw;
+            lookDeltaRef.current.pitch += deltaPitch;
           }}
           onJump={() => setJumpRequestCount((prev) => prev + 1)}
           onSprintChange={setSprintActive}

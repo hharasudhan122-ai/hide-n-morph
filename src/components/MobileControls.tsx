@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface MobileControlsProps {
   onMoveChange: (movement: { x: number; y: number }) => void;
-  /** Called with an incremental yaw delta (already sensitivity-scaled)
-   *  every time the free-look layer registers finger movement. This
-   *  replaces the old joystick-style "held value" look control — the
-   *  caller (FirstPersonController, via a ref) just accumulates and
-   *  drains these deltas once per frame. */
-  onLookDelta: (deltaYaw: number) => void;
+  /**
+   * Called with incremental yaw/pitch deltas (already sensitivity-scaled)
+   * every time the free-look layer registers finger movement. This is a
+   * touchpad-style free-look: both axes are dragged simultaneously, like a
+   * laptop trackpad or a mouse — not just a left/right swipe.
+   * The caller (FirstPersonController, via a ref) accumulates and drains
+   * these deltas once per frame.
+   */
+  onLookDelta: (deltaYaw: number, deltaPitch: number) => void;
   onJump: () => void;
   onSprintChange: (active: boolean) => void;
   onAction: () => void;
@@ -18,10 +21,10 @@ export interface MobileControlsProps {
 
 const JOYSTICK_RADIUS = 64;
 const JOYSTICK_DEADZONE = 0.12;
-// Radians of camera turn per pixel of horizontal finger movement on the
-// free-look layer. Tuned so a full landscape-width swipe (~800px) turns
-// the camera a bit more than a full 360 — fast flicks feel responsive
-// without being twitchy for small corrections.
+// Radians of camera turn per pixel of finger movement on the free-look
+// layer. Tuned so a full landscape-width swipe (~800px) turns the camera
+// a bit more than a full 360 — fast flicks feel responsive without being
+// twitchy for small corrections. Same sensitivity is used for both axes.
 const LOOK_SENSITIVITY = 0.0045;
 
 function clampJoystickValue(value: number) {
@@ -108,17 +111,29 @@ function useJoystick(onChange: (value: { x: number; y: number }) => void) {
 
 /**
  * Free-look drag layer: an invisible full-screen surface. Touching down
- * anywhere on it and dragging rotates the camera by the horizontal
- * distance dragged (same "swipe anywhere to look around" scheme as
- * Free Fire / PUBG Mobile), rather than being confined to a small
- * joystick pad. Like the move joystick above, tracking uses
- * window-level listeners so the drag keeps working no matter how far
- * across the screen the finger travels.
+ * anywhere on it and dragging rotates the camera — BOTH horizontally
+ * (yaw) and vertically (pitch), like a laptop trackpad/mouse — rather
+ * than being confined to a small joystick pad or a single axis.
+ *
+ * Sign convention: dragging the finger RIGHT turns the view RIGHT, and
+ * dragging UP tilts the view UP — matching how mouse-look works on
+ * desktop. (Previously this only tracked dx and passed it through
+ * un-negated, which produced the opposite of the intended turn — drag
+ * left rotated the view right and vice versa. Both dx and dy are
+ * negated below before scaling; flip either sign back if your
+ * FirstPersonController's convention turns out to expect the opposite.)
  */
-function useLookDrag(onDelta: (dx: number) => void) {
+function useLookDrag(onDelta: (deltaYaw: number, deltaPitch: number) => void) {
   const activePointer = useRef<number | null>(null);
   const lastX = useRef(0);
+  const lastY = useRef(0);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  const reset = () => {
+    activePointer.current = null;
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+  };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     // Only track one look-finger at a time; ignore extra simultaneous
@@ -126,18 +141,22 @@ function useLookDrag(onDelta: (dx: number) => void) {
     if (activePointer.current !== null) return;
     activePointer.current = e.pointerId;
     lastX.current = e.clientX;
+    lastY.current = e.clientY;
 
     const handleMove = (ev: PointerEvent) => {
       if (activePointer.current !== ev.pointerId) return;
       const dx = ev.clientX - lastX.current;
+      const dy = ev.clientY - lastY.current;
       lastX.current = ev.clientX;
-      if (dx !== 0) onDelta(dx * LOOK_SENSITIVITY);
+      lastY.current = ev.clientY;
+      if (dx !== 0 || dy !== 0) {
+        // Negated: drag right -> look right, drag up -> look up.
+        onDelta(-dx * LOOK_SENSITIVITY, -dy * LOOK_SENSITIVITY);
+      }
     };
     const handleUp = (ev: PointerEvent) => {
       if (activePointer.current !== ev.pointerId) return;
-      activePointer.current = null;
-      cleanupRef.current?.();
-      cleanupRef.current = null;
+      reset();
     };
 
     window.addEventListener('pointermove', handleMove);
@@ -150,7 +169,7 @@ function useLookDrag(onDelta: (dx: number) => void) {
     };
   };
 
-  return onPointerDown;
+  return { onPointerDown, reset };
 }
 
 export function MobileControls({
@@ -164,6 +183,7 @@ export function MobileControls({
   onEnsureLandscape,
 }: MobileControlsProps) {
   const moveJoy = useJoystick(onMoveChange);
+  const look = useLookDrag(onLookDelta);
   const [sprintActive, setSprintActive] = useState(false);
 
   const handleTouchStart = () => {
@@ -174,7 +194,33 @@ export function MobileControls({
     }
   };
 
-  const handleLookPointerDown = useLookDrag(onLookDelta);
+  // Safety net against "stuck" controls: if the tab is backgrounded mid-
+  // touch (notification pull-down, app switch, screen lock, incoming
+  // call, etc.) mobile browsers can silently drop the pointerup/
+  // pointercancel event entirely. Without this, the joystick or look
+  // drag latches onto its last value forever and never resets, because
+  // nothing ever tells it the touch ended — which looks exactly like
+  // "movement/rotation got stuck". Blur and visibilitychange fire
+  // reliably in all of those cases, so we use them to force everything
+  // back to a neutral, released state.
+  useEffect(() => {
+    const forceReset = () => {
+      moveJoy.end();
+      look.reset();
+      setSprintActive(false);
+      onSprintChange(false);
+    };
+    const handleVisibility = () => {
+      if (document.hidden) forceReset();
+    };
+    window.addEventListener('blur', forceReset);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('blur', forceReset);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSprintDown = () => {
     handleTouchStart();
@@ -197,12 +243,13 @@ export function MobileControls({
       {/* Sits full-screen and BELOW the joystick/buttons in the DOM, so
          it's visually/hit-test "under" them — touches on the joystick
          or buttons are consumed by those elements first, while every
-         other touch (the "empty screen") drags the camera around. */}
+         other touch (the "empty screen") drags the camera around, in
+         any direction, like a trackpad. */}
       <div
         className="mobile-look-layer"
         onPointerDown={(e) => {
           handleTouchStart();
-          handleLookPointerDown(e);
+          look.onPointerDown(e);
         }}
       />
 

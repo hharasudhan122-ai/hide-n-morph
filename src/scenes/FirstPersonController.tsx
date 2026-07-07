@@ -45,14 +45,15 @@ interface FirstPersonControllerProps {
   onPositionChange?: (position: [number, number, number], rotationY: number) => void;
   disabled?: boolean;
   mobileMoveInput?: { x: number; y: number };
-  /** Accumulated, not-yet-applied camera yaw (radians) from the mobile
-   *  free-look drag layer. MobileControls ADDS to this ref on every
-   *  pointermove; this component reads it once per frame, applies it
-   *  to the camera, then resets it to 0 — a ref (rather than React
-   *  state) is used specifically so drag events don't have to round-trip
-   *  through a re-render before affecting rotation, and so nothing
-   *  needs to "un-apply" a stale value on frames with no new input. */
-  mobileLookDeltaRef?: MutableRefObject<number>;
+  /** Accumulated, not-yet-applied camera yaw+pitch (radians) from the
+   *  mobile free-look drag layer. MobileControls ADDS to this ref on
+   *  every pointermove; this component reads it once per frame, applies
+   *  it to the camera, then resets both fields to 0 — a ref (rather
+   *  than React state) is used specifically so drag events don't have
+   *  to round-trip through a re-render before affecting rotation, and
+   *  so nothing needs to "un-apply" a stale value on frames with no new
+   *  input. */
+  mobileLookDeltaRef?: MutableRefObject<{ yaw: number; pitch: number }>;
   mobileSprint?: boolean;
   jumpRequestCount?: number;
 }
@@ -242,15 +243,26 @@ export function FirstPersonController({ startPosition, bounds, colliders = [], w
     const forward = mobileMoveInput.y || (keys.has('KeyW') ? 1 : keys.has('KeyS') ? -1 : 0);
     const strafe = mobileMoveInput.x || (keys.has('KeyD') ? 1 : keys.has('KeyA') ? -1 : 0);
 
-    // Drain the mobile free-look accumulator: apply whatever yaw has
-    // built up since last frame (already sensitivity-scaled by
+    // Drain the mobile free-look accumulator: apply whatever yaw/pitch
+    // has built up since last frame (already sensitivity-scaled by
     // MobileControls, so it's applied directly rather than multiplied
     // by delta — unlike a joystick "held" value, this is a one-shot
     // amount of turn that arrived since we last checked), then zero it
     // out so it isn't re-applied next frame with no new drag input.
-    if (mobileLookDeltaRef && mobileLookDeltaRef.current !== 0) {
-      camera.rotation.y += mobileLookDeltaRef.current;
-      mobileLookDeltaRef.current = 0;
+    if (mobileLookDeltaRef && (mobileLookDeltaRef.current.yaw !== 0 || mobileLookDeltaRef.current.pitch !== 0)) {
+      camera.rotation.y += mobileLookDeltaRef.current.yaw;
+      // Clamp pitch to just short of straight up/down — going all the
+      // way to +/-90deg can flip the yaw axis (gimbal-style) on the
+      // next frame's atan2-based rotationY read further down, so stop
+      // a hair before it.
+      const MAX_PITCH = Math.PI / 2 - 0.05;
+      camera.rotation.x = THREE.MathUtils.clamp(
+        camera.rotation.x + mobileLookDeltaRef.current.pitch,
+        -MAX_PITCH,
+        MAX_PITCH
+      );
+      mobileLookDeltaRef.current.yaw = 0;
+      mobileLookDeltaRef.current.pitch = 0;
     }
 
     if (forward === 0 && strafe === 0) {
