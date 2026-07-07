@@ -86,7 +86,11 @@ export function MobileControls({
   }, [onSprintChange, sprintActive]);
 
   const handleTouchStart = () => {
-    onEnsureLandscape?.();
+    try {
+     onEnsureLandscape?.();
+    } catch {
+    // never let a landscape-lock failure break touch controls
+   }
   };
 
   return (

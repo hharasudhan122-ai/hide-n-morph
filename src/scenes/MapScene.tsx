@@ -492,11 +492,16 @@ export function MapScene({
           actionLabel={role === 'seeker' ? 'Shoot' : currentMorphId ? 'Un-morph' : 'Morph'}
           showLandscapeHint={landscapeHint}
           onEnsureLandscape={() => {
-            const screenAny = window.screen as any;
-            if (screenAny.orientation && typeof screenAny.orientation.lock === 'function') {
-              screenAny.orientation.lock('landscape').catch(() => {
-                setLandscapeHint(true);
-              });
+            try {
+              const screenAny = window.screen as any;
+              const result = screenAny.orientation?.lock?.('landscape');
+              if (result && typeof result.catch === 'function') {
+                result.catch(() => setLandscapeHint(true));
+              } else {
+                 setLandscapeHint(true);
+              }
+            } catch {
+              setLandscapeHint(true);
             }
           }}
         />
