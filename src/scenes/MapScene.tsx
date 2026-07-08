@@ -367,10 +367,6 @@ export function MapScene({
 
     function handleTouchStart() {
       setMobileActive(true);
-      if (window.screen && window.screen.orientation) {
-        const isLandscape = window.screen.orientation.type.startsWith('landscape');
-        setLandscapeHint(!isLandscape);
-      }
     }
 
     window.addEventListener('keydown', handleToggleKey);
@@ -378,6 +374,35 @@ export function MapScene({
     return () => {
       window.removeEventListener('keydown', handleToggleKey);
       window.removeEventListener('touchstart', handleTouchStart);
+    };
+  }, []);
+
+  // Landscape detection, decoupled from touch events and from whether
+  // screen.orientation.lock() succeeds. This used to live inside
+  // onEnsureLandscape/handleTouchStart and got recomputed from the
+  // lock() PROMISE RESULT instead of the actual orientation — which is
+  // what caused the false "rotate to landscape" warning: lock() is
+  // rejected on basically any page that isn't in fullscreen, and
+  // screen.orientation.lock doesn't exist at all on iOS Safari, so
+  // `.catch(() => setLandscapeHint(true))` (or the "no lock function"
+  // fallback) fired on EVERY tap regardless of the phone's real
+  // orientation — including a tap on the morph/action button. This
+  // effect instead reads the real orientation via matchMedia, updates
+  // on resize/orientationchange, and never gets touched by lock()
+  // success or failure.
+  useEffect(() => {
+    function updateLandscapeHint() {
+      const isLandscape =
+        (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ||
+        window.innerWidth > window.innerHeight;
+      setLandscapeHint(!isLandscape);
+    }
+    updateLandscapeHint();
+    window.addEventListener('resize', updateLandscapeHint);
+    window.addEventListener('orientationchange', updateLandscapeHint);
+    return () => {
+      window.removeEventListener('resize', updateLandscapeHint);
+      window.removeEventListener('orientationchange', updateLandscapeHint);
     };
   }, []);
 
@@ -501,16 +526,19 @@ export function MapScene({
           actionLabel={role === 'seeker' ? 'Shoot' : currentMorphId ? 'Un-morph' : 'Morph'}
           showLandscapeHint={landscapeHint}
           onEnsureLandscape={() => {
+            // Best-effort only. screen.orientation.lock() requires
+            // fullscreen on most browsers and doesn't exist at all on
+            // iOS Safari, so a rejection/absence here is completely
+            // normal and must NOT flip the landscape warning — the
+            // real-orientation effect above owns that state now.
             try {
               const screenAny = window.screen as any;
               const result = screenAny.orientation?.lock?.('landscape');
               if (result && typeof result.catch === 'function') {
-                result.catch(() => setLandscapeHint(true));
-              } else {
-                 setLandscapeHint(true);
+                result.catch(() => {});
               }
             } catch {
-              setLandscapeHint(true);
+              // ignore — landscapeHint is driven by matchMedia, not this call
             }
           }}
         />

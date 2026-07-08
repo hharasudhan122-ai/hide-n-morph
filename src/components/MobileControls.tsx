@@ -172,6 +172,23 @@ function useLookDrag(onDelta: (deltaYaw: number, deltaPitch: number) => void) {
   return { onPointerDown, reset };
 }
 
+// Inline style applied to every touch-draggable surface (look layer,
+// joystick pad, buttons). touch-action: none is the actual fix for
+// "vertical/diagonal drag doesn't work" — without it, the browser's
+// default gesture handling (page scroll, iOS rubber-banding, Chrome
+// pull-to-refresh) intercepts the vertical component of a drag before
+// our pointermove listener ever sees it. Horizontal-only drags "work"
+// today only because there's nothing to scroll sideways, so the
+// browser has nothing to steal. overscrollBehavior is a second layer
+// of the same fix specifically against pull-to-refresh/rubber-banding.
+const NO_GESTURE_STYLE: React.CSSProperties = {
+  touchAction: 'none',
+  overscrollBehavior: 'none',
+  WebkitUserSelect: 'none',
+  userSelect: 'none',
+  WebkitTouchCallout: 'none',
+};
+
 export function MobileControls({
   onMoveChange,
   onLookDelta,
@@ -185,8 +202,17 @@ export function MobileControls({
   const moveJoy = useJoystick(onMoveChange);
   const look = useLookDrag(onLookDelta);
   const [sprintActive, setSprintActive] = useState(false);
+  // onEnsureLandscape only needs to run once — it used to fire on
+  // EVERY joystick/look/button touch, which is what made the false
+  // "rotate to landscape" warning reappear on essentially any tap
+  // (including the morph/action button). See onEnsureLandscape in
+  // MapScene.tsx for the actual state-correctness fix; this ref just
+  // stops us from hammering the lock() call for no reason.
+  const triedLandscapeLock = useRef(false);
 
   const handleTouchStart = () => {
+    if (triedLandscapeLock.current) return;
+    triedLandscapeLock.current = true;
     try {
       onEnsureLandscape?.();
     } catch {
@@ -235,7 +261,11 @@ export function MobileControls({
   return (
     <div className="mobile-controls-overlay">
       {showLandscapeHint && (
-        <div className="mobile-landscape-warning">
+        // pointerEvents: 'none' means this banner can NEVER block a
+        // touch underneath it, even in the (now-fixed) edge case where
+        // it shows up incorrectly. Purely informational, never an
+        // input blocker.
+        <div className="mobile-landscape-warning" style={{ pointerEvents: 'none' }}>
           Rotate your phone to landscape for the best experience.
         </div>
       )}
@@ -244,9 +274,15 @@ export function MobileControls({
          it's visually/hit-test "under" them — touches on the joystick
          or buttons are consumed by those elements first, while every
          other touch (the "empty screen") drags the camera around, in
-         any direction, like a trackpad. */}
+         any direction, like a trackpad.
+         style=NO_GESTURE_STYLE is the fix for "dragging up/down/diagonal
+         doesn't look up/down" — without touch-action: none here, the
+         browser intercepts the vertical component of the drag as a
+         page-scroll/pull-to-refresh gesture before onPointerDown's
+         window-level pointermove listener ever sees it. */}
       <div
         className="mobile-look-layer"
+        style={NO_GESTURE_STYLE}
         onPointerDown={(e) => {
           handleTouchStart();
           look.onPointerDown(e);
@@ -256,6 +292,7 @@ export function MobileControls({
       <div className="mobile-controls-row">
         <div
           className="mobile-joystick-pad"
+          style={NO_GESTURE_STYLE}
           onPointerDown={(e) => {
             handleTouchStart();
             moveJoy.start(e.pointerId, e.clientX, e.clientY);
@@ -269,6 +306,7 @@ export function MobileControls({
         <button
           type="button"
           className={`mobile-action-button${sprintActive ? ' mobile-action-button-active' : ''}`}
+          style={NO_GESTURE_STYLE}
           onPointerDown={handleSprintDown}
           onPointerUp={handleSprintUp}
           onPointerLeave={handleSprintUp}
@@ -279,6 +317,7 @@ export function MobileControls({
         <button
           type="button"
           className="mobile-action-button"
+          style={NO_GESTURE_STYLE}
           onPointerDown={() => {
             handleTouchStart();
             onJump();
@@ -289,6 +328,7 @@ export function MobileControls({
         <button
           type="button"
           className="mobile-action-button mobile-action-primary"
+          style={NO_GESTURE_STYLE}
           onPointerDown={() => {
             handleTouchStart();
             onAction();
